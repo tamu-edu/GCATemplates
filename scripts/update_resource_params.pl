@@ -26,6 +26,15 @@ Options:
 Example command:
     perl update_resource_params.pl -K 1 -C 48 -M 360
 
+Configuration:
+    A configuration line added at the bottom of each script is used to update tools that support multi-core processing
+    and others that require the minimal amount of memory.
+    The last line of the template script will need to contain the following format if you want to use update_resource_params.pl
+
+    Example configs:
+    #1:C:M	= set to 1 task: value provided by -C option for cores: and value provided by -M for memory
+    #C:1:M	= set to -C tasks: 1 core: and -M for memory
+    #1:1:m	= set to 1 task: 1 core: and -m for memory
 };
 
 my $cluster_name = 'hpc';
@@ -72,8 +81,6 @@ sub get_content {
     my $file = shift;
     open my $fh, '<', $file or die "Can't open file \" $file\":$!";
     my $content = join('', <$fh>);
-    my ($conf_ntasks, $conf_cpus, $conf_mem);
-    ($conf_ntasks, $conf_cpus, $conf_mem) = ($1,$2,$3) if $content =~ /\n#(\d+|C):(\d+|C):(\d+|M|m)$/;
 
     # Slurm params that can be updated
 #SBATCH --time=01:00:00             # max job run time dd-hh:mm:ss
@@ -81,17 +88,20 @@ sub get_content {
 #SBATCH --cpus-per-task=48          # CPUs (threads) per command
 #SBATCH --mem=2G                    # total memory per node
 
-    $content =~ s/--time=\d+:/--time=$time_hours:/;
-    if ($conf_ntasks eq 'C') {
-        $content =~ s/--ntasks-per-node=\d+/--ntasks-per-node=$cpus_per_task/;
-    }
-    elsif ($conf_ntasks eq 'K') {
-        $content =~ s/--ntasks-per-node=\d+/--ntasks-per-node=$ntasks_per_node/;
-    }
-    $content =~ s/--cpus-per-task=\d+/--cpus-per-task=$cpus_per_task/ if $conf_cpus !~ /^\d+$/;
-    $content =~ s/--mem=\d+\w/--mem=${max_memory}$memory_units/ if $conf_mem eq 'M';
-    $content =~ s/--mem=\d+\w/--mem=${min_memory}$memory_units/ if $conf_mem eq 'm';
+    if ($content =~ /\n#(\d+|C):(\d+|C):(\d+|M|m)$/) {
+        my ($conf_ntasks, $conf_cpus, $conf_mem) = ($1,$2,$3) ;
 
+        $content =~ s/--time=\d+:/--time=$time_hours:/;
+        if ($conf_ntasks eq 'C') {
+            $content =~ s/--ntasks-per-node=\d+/--ntasks-per-node=$cpus_per_task/;
+        }
+        elsif ($conf_ntasks eq 'K') {
+            $content =~ s/--ntasks-per-node=\d+/--ntasks-per-node=$ntasks_per_node/;
+        }
+        $content =~ s/--cpus-per-task=\d+/--cpus-per-task=$cpus_per_task/ if $conf_cpus !~ /^\d+$/;
+        $content =~ s/--mem=\d+\w/--mem=${max_memory}$memory_units/ if $conf_mem eq 'M';
+        $content =~ s/--mem=\d+\w/--mem=${min_memory}$memory_units/ if $conf_mem eq 'm';
+    }
     close $fh;
     return $content;
 }
